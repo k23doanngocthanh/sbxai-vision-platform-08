@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +20,12 @@ interface Project {
   user_id: string;
   name: string;
   created_at: string;
+  counts?: {
+    projects?: number;
+    images?: number;
+    annotation_sessions?: number;
+    labels?: number; // Optional, in case you want to extend
+  };
 }
 
 export default function ProjectDetail() {
@@ -133,7 +138,7 @@ export default function ProjectDetail() {
               <ImageIcon className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
+              <div className="text-2xl font-bold">{project.counts?.images ?? 0}</div>
               <p className="text-xs text-gray-500">Total uploaded</p>
             </CardContent>
           </Card>
@@ -144,7 +149,7 @@ export default function ProjectDetail() {
               <Tag className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
+              <div className="text-2xl font-bold">{project.counts?.labels ?? 0}</div>
               <p className="text-xs text-gray-500">Created labels</p>
             </CardContent>
           </Card>
@@ -155,7 +160,7 @@ export default function ProjectDetail() {
               <User className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
+              <div className="text-2xl font-bold">{project.counts?.annotation_sessions ?? 0}</div>
               <p className="text-xs text-gray-500">Annotation sessions</p>
             </CardContent>
           </Card>

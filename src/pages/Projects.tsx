@@ -66,12 +66,16 @@ export default function Projects() {
             'Content-Type': 'application/json'
           }
         }
-      );
+            );
 
       if (response.ok) {
         const data = await response.json();
+        console.log('uri', `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECTS}?limit=50`);
+        console.log('Fetched projects:', data);
+        console.log('Fetched projects:', data.projects);
         setProjects(data.projects || []);
       } else {
+          console.log('Fetched projects:', response);
         throw new Error('Failed to fetch projects');
       }
     } catch (error) {

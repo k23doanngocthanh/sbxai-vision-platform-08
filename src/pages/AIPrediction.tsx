@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,14 +36,9 @@ interface AIModel {
 
 interface Detection {
   class_id: number;
-  class_name: string;
+  label: string;
   confidence: number;
-  bbox: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
+  bbox: number[]; // [x1, y1, x2, y2]
   text?: string;
 }
 
@@ -59,6 +54,7 @@ interface PredictionResult {
 
 export default function AIPrediction() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -75,6 +71,18 @@ export default function AIPrediction() {
   useEffect(() => {
     loadModels();
   }, []);
+
+  // Khi models đã load xong, kiểm tra query param
+  useEffect(() => {
+    if (modelsLoaded && models.length > 0) {
+      const modelParam = searchParams.get('model');
+      if (modelParam) {
+        const found = models.find(m => m.id === modelParam || m.name === modelParam);
+        if (found) setSelectedModel(found);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelsLoaded, models, searchParams]);
 
   const loadModels = async () => {
     try {
@@ -166,7 +174,6 @@ export default function AIPrediction() {
 
   const drawDetections = (detections: Detection[]) => {
     if (!canvasRef.current || !imagePreview) return;
-
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -175,58 +182,34 @@ export default function AIPrediction() {
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
-      
-      // Draw image
+
       ctx.drawImage(img, 0, 0);
 
-      // Draw detections with color-coded confidence
       detections.forEach((detection) => {
-        const { bbox, class_name, confidence } = detection;
+        const { bbox, label, confidence } = detection;
+        const x = bbox[0];
+        const y = bbox[1];
+        const width = bbox[2] - bbox[0];
+        const height = bbox[3] - bbox[1];
         const color = getConfidenceColor(confidence);
-        
-        ctx.strokeStyle = color;
-        ctx.fillStyle = color + '40'; // Semi-transparent fill
-        ctx.lineWidth = 3;
 
-        // Draw semi-transparent bounding box
-        ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height);
-        ctx.strokeRect(bbox.x, bbox.y, bbox.width, bbox.height);
+        // Draw bbox
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x, y, width, height);
 
         // Draw label background
-        ctx.font = 'bold 16px Arial';
-        const label = `${class_name} ${(confidence * 100).toFixed(1)}%`;
-        const textMetrics = ctx.measureText(label);
-        const textWidth = textMetrics.width;
-        const textHeight = 20;
-        
-        // Label background
-        ctx.fillStyle = color;
-        ctx.fillRect(bbox.x, bbox.y - textHeight - 5, textWidth + 10, textHeight + 5);
-        
-        // Label text
+        ctx.font = 'bold 14px Arial';
+        const labelText = `${label} ${(confidence * 100).toFixed(1)}%`;
+        const textWidth = ctx.measureText(labelText).width;
+        const textHeight = 18;
+
+        ctx.fillStyle = color + 'CC'; // semi-transparent
+        ctx.fillRect(x, y - textHeight, textWidth + 10, textHeight);
+
+        // Draw label text
         ctx.fillStyle = 'white';
-        ctx.fillText(label, bbox.x + 5, bbox.y - 8);
-
-        // Draw OCR text if available
-        if (detection.text) {
-          ctx.fillStyle = color;
-          ctx.font = '14px Arial';
-          const textLines = detection.text.split('\n');
-          textLines.forEach((line, index) => {
-            ctx.fillText(line, bbox.x, bbox.y + bbox.height + 20 + (index * 18));
-          });
-        }
-
-        // Draw confidence indicator (small circle)
-        const circleX = bbox.x + bbox.width - 15;
-        const circleY = bbox.y + 15;
-        ctx.beginPath();
-        ctx.arc(circleX, circleY, 8, 0, 2 * Math.PI);
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        ctx.fillText(labelText, x + 5, y - 5);
       });
     };
     img.src = imagePreview;
@@ -486,18 +469,22 @@ export default function AIPrediction() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {predictionResult.detections.map((detection, index) => {
                             const confidenceColor = getConfidenceColor(detection.confidence);
+                            const x = detection.bbox[0];
+                            const y = detection.bbox[1];
+                            const width = detection.bbox[2] - detection.bbox[0];
+                            const height = detection.bbox[3] - detection.bbox[1];
                             return (
-                              <div key={index} className="p-3 bg-gray-50 rounded-lg border-l-4" 
+                              <div key={index} className="p-3 bg-gray-50 rounded-lg border-l-4"
                                    style={{ borderLeftColor: confidenceColor }}>
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className="font-medium">{detection.class_name}</span>
+                                  <span className="font-medium">{detection.label}</span>
                                   <Badge style={{ backgroundColor: confidenceColor, color: 'white' }}>
                                     {(detection.confidence * 100).toFixed(1)}%
                                   </Badge>
                                 </div>
                                 <div className="text-sm text-gray-600">
-                                  <div>Position: ({Math.round(detection.bbox.x)}, {Math.round(detection.bbox.y)})</div>
-                                  <div>Size: {Math.round(detection.bbox.width)} × {Math.round(detection.bbox.height)}</div>
+                                  <div>Position: ({Math.round(x)}, {Math.round(y)})</div>
+                                  <div>Size: {Math.round(width)} × {Math.round(height)}</div>
                                   {detection.text && (
                                     <div className="mt-2 p-2 bg-white rounded border">
                                       <strong>Text:</strong> {detection.text}

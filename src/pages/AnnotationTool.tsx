@@ -169,23 +169,7 @@ export default function AnnotationTool() {
 
       if (sessionResponse.ok) {
         const session = await sessionResponse.json();
-        setSessionId(session.session_id);
-        
-        // Load existing annotations
-        const itemsResponse = await fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SESSION_ITEMS(session.session_id)}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-
-        if (itemsResponse.ok) {
-          const itemsData = await itemsResponse.json();
-          setAnnotations(itemsData.items || []);
-        }
+        setSessionId(session.session_id); // chỉ setSessionId, không loadAnnotations ở đây
       }
     } catch (error) {
       console.error('Error loading annotation data:', error);
@@ -196,6 +180,30 @@ export default function AnnotationTool() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAnnotations = async () => {
+    if (!sessionId) return;
+    try {
+      console.log('Loading annotations for session:', sessionId);
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      const itemsResponse = await fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SESSION_ITEMS(sessionId)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      if (itemsResponse.ok) {
+        const itemsData = await itemsResponse.json();
+        console.log('Loaded annotation items:', itemsData.items);
+        setAnnotations(itemsData.items || []);
+      }
+    } catch (error) {
+      // handle error
     }
   };
 
@@ -338,36 +346,24 @@ export default function AnnotationTool() {
     try {
       const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       const formData = new FormData();
-      
       formData.append('label_id', annotation.label_id.toString());
-      
-      if (annotation.bbox) {
-        formData.append('bbox', JSON.stringify(annotation.bbox));
-      }
-      
-      if (annotation.polygon) {
-        formData.append('polygon', JSON.stringify(annotation.polygon));
-      }
-      
-      if (annotation.text) {
-        formData.append('text', annotation.text);
-      }
-      
+      if (annotation.bbox) formData.append('bbox', JSON.stringify(annotation.bbox));
+      if (annotation.polygon) formData.append('polygon', JSON.stringify(annotation.polygon));
+      if (annotation.text) formData.append('text', annotation.text);
       formData.append('confidence', '1.0');
 
       const response = await fetch(
         `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SESSION_ITEMS(sessionId)}`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Authorization': `Bearer ${token}` },
           body: formData
         }
       );
 
       if (response.ok) {
-        setAnnotations([...annotations, { ...annotation, id: Date.now() }]);
+        // Thay vì chỉ thêm vào state, hãy reload lại annotation từ backend:
+        await loadAnnotations(); // <-- Thêm dòng này
         toast({
           title: "Success",
           description: "Annotation saved successfully",
@@ -383,13 +379,41 @@ export default function AnnotationTool() {
     }
   };
 
-  const deleteAnnotation = (index: number) => {
-    const newAnnotations = annotations.filter((_, i) => i !== index);
-    setAnnotations(newAnnotations);
-    toast({
-      title: "Success",
-      description: "Annotation deleted",
-    });
+  const deleteAnnotation = async (index: number) => {
+    const annotation = annotations[index];
+    if (!annotation?.id || !sessionId) return;
+
+    try {
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SESSION_ITEMS(sessionId)}/${annotation.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+      if (response.ok) {
+        await loadAnnotations();
+        toast({
+          title: "Success",
+          description: "Annotation deleted",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete annotation",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete annotation",
+        variant: "destructive",
+      });
+    }
   };
 
   const getToolIcon = (tool: Tool) => {
@@ -400,6 +424,13 @@ export default function AnnotationTool() {
       case TOOLS.TEXT: return Type;
     }
   };
+
+  useEffect(() => {
+    if (sessionId) {
+      loadAnnotations();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   if (loading) {
     return (
@@ -497,7 +528,7 @@ export default function AnnotationTool() {
                     <div className="flex items-center justify-center h-64">
                       <div className="text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
-                        <p className="text-sm text-gray-500">Loading image...</p>
+                        <p className="text-sm text-gray-500 mb-2">Loading image...</p>
                       </div>
                     </div>
                   )}
