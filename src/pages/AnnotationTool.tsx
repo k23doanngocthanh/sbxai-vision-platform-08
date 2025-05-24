@@ -72,6 +72,7 @@ export default function AnnotationTool() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageBlob, setImageBlob] = useState<string | null>(null);
+  const [actualImage, setActualImage] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || !projectId || !imageId) {
@@ -118,16 +119,36 @@ export default function AnnotationTool() {
         const imageInfo = imagesData.images?.find((img: any) => img.id === imageId);
         
         if (imageInfo) {
-          // Create a dummy URL since we can't access the actual file
-          const dummyUrl = `data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=`;
-          
           setImage({
             id: imageId!,
-            file_path: dummyUrl,
+            file_path: imageInfo.file_path,
             original_filename: imageInfo.original_filename || 'image.jpg',
             image_width: imageInfo.image_width || 640,
             image_height: imageInfo.image_height || 640
           });
+
+          // Load the actual image file
+          const imageResponse = await fetch(
+            `${API_CONFIG.BASE_URL}/api/v1/yolo/rest/images/${imageId}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              }
+            }
+          );
+
+          if (imageResponse.ok) {
+            const imageBlob = await imageResponse.blob();
+            const imageUrl = URL.createObjectURL(imageBlob);
+            setImageBlob(imageUrl);
+
+            // Create image element for canvas drawing
+            const img = new Image();
+            img.onload = () => {
+              setActualImage(img);
+            };
+            img.src = imageUrl;
+          }
         }
       }
 
@@ -179,7 +200,7 @@ export default function AnnotationTool() {
   };
 
   const drawCanvas = useCallback(() => {
-    if (!canvasRef.current || !image) return;
+    if (!canvasRef.current || !image || !actualImage) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -192,26 +213,8 @@ export default function AnnotationTool() {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw a placeholder background
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw grid pattern
-    ctx.strokeStyle = '#e0e0e0';
-    ctx.lineWidth = 1;
-    const gridSize = 20 * scale;
-    for (let x = 0; x < canvas.width; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y < canvas.height; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
-    }
+    // Draw the actual image
+    ctx.drawImage(actualImage, 0, 0, canvas.width, canvas.height);
 
     // Draw annotations
     annotations.forEach(annotation => {
@@ -263,7 +266,7 @@ export default function AnnotationTool() {
         }
       }
     }
-  }, [image, annotations, currentAnnotation, labels, scale]);
+  }, [image, annotations, currentAnnotation, labels, scale, actualImage]);
 
   useEffect(() => {
     drawCanvas();
@@ -481,7 +484,7 @@ export default function AnnotationTool() {
             <Card className="border-0 shadow-lg">
               <CardContent className="p-4">
                 <div className="border rounded-lg overflow-auto max-h-[600px]">
-                  {image && (
+                  {image && imageBlob && (
                     <canvas
                       ref={canvasRef}
                       className="cursor-crosshair"
@@ -490,12 +493,14 @@ export default function AnnotationTool() {
                       onMouseUp={handleCanvasMouseUp}
                     />
                   )}
-                </div>
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Note:</strong> Image display is currently using a placeholder. 
-                    The annotation functionality works with the actual image dimensions ({image?.image_width} × {image?.image_height}).
-                  </p>
+                  {!imageBlob && image && (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                        <p className="text-sm text-gray-500">Loading image...</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
