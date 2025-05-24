@@ -44,7 +44,6 @@ export default function UploadImages() {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated || !projectId) {
@@ -56,16 +55,27 @@ export default function UploadImages() {
   const generateFileId = () => Math.random().toString(36).substring(2, 15);
 
   const handleFileSelect = useCallback((selectedFiles: FileList) => {
-    const newFiles = Array.from(selectedFiles).map(file => ({
-      ...file,
-      id: generateFileId(),
-      preview: URL.createObjectURL(file),
-      status: 'pending' as const,
-      progress: 0
-    }));
+    const newFiles = Array.from(selectedFiles)
+      .filter(file => file.type.startsWith('image/'))
+      .map(file => ({
+        ...file,
+        id: generateFileId(),
+        preview: URL.createObjectURL(file),
+        status: 'pending' as const,
+        progress: 0
+      }));
+
+    if (newFiles.length === 0) {
+      toast({
+        title: "Invalid files",
+        description: "Please select only image files",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setFiles(prev => [...prev, ...newFiles]);
-  }, []);
+  }, [toast]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -104,18 +114,34 @@ export default function UploadImages() {
     
     try {
       const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-      const formData = new FormData();
       
       const pendingFiles = files.filter(f => f.status === 'pending');
       
-      pendingFiles.forEach(file => {
-        formData.append('files', file);
-      });
+      if (pendingFiles.length === 0) {
+        toast({
+          title: "No files to upload",
+          description: "All files have already been uploaded",
+        });
+        setIsUploading(false);
+        return;
+      }
 
       // Update files status to uploading
       setFiles(prev => prev.map(f => 
         f.status === 'pending' ? { ...f, status: 'uploading' as const } : f
       ));
+
+      // Create FormData and append files correctly
+      const formData = new FormData();
+      pendingFiles.forEach(file => {
+        console.log('Appending file:', file.name, file.type, file.size);
+        formData.append('files', file, file.name);
+      });
+
+      console.log('FormData entries:');
+      for (let [key, value] of formData.entries()) {
+        console.log(key, value);
+      }
 
       const response = await fetch(
         `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECT_IMAGES(projectId)}`,
@@ -128,8 +154,12 @@ export default function UploadImages() {
         }
       );
 
+      const responseText = await response.text();
+      console.log('Response status:', response.status);
+      console.log('Response text:', responseText);
+
       if (response.ok) {
-        const result = await response.json();
+        const result = JSON.parse(responseText);
         
         // Update files status to success
         setFiles(prev => prev.map(f => 
@@ -138,7 +168,7 @@ export default function UploadImages() {
 
         toast({
           title: "Success",
-          description: `Successfully uploaded ${result.images.length} images`,
+          description: `Successfully uploaded ${result.images?.length || pendingFiles.length} images`,
         });
 
         // Auto navigate to gallery after 2 seconds
@@ -146,19 +176,30 @@ export default function UploadImages() {
           navigate(`/projects/${projectId}/gallery`);
         }, 2000);
       } else {
-        throw new Error('Failed to upload images');
+        let errorMessage = 'Failed to upload images';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          console.error('Error parsing response:', e);
+        }
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Error uploading images:', error);
       
       // Update files status to error
       setFiles(prev => prev.map(f => 
-        f.status === 'uploading' ? { ...f, status: 'error' as const, error: 'Upload failed' } : f
+        f.status === 'uploading' ? { 
+          ...f, 
+          status: 'error' as const, 
+          error: error instanceof Error ? error.message : 'Upload failed' 
+        } : f
       ));
 
       toast({
         title: "Error",
-        description: "Failed to upload images",
+        description: error instanceof Error ? error.message : "Failed to upload images",
         variant: "destructive",
       });
     } finally {
@@ -267,7 +308,7 @@ export default function UploadImages() {
                     </Button>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
                     {files.map((file) => (
                       <div key={file.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                         <div className="flex-shrink-0">
