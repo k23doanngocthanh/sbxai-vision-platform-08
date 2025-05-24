@@ -35,6 +35,9 @@ export const APP_ROUTES = {
   DASHBOARD: '/dashboard',
   PROJECTS: '/projects',
   PROJECT_DETAIL: '/projects/:id',
+  UPLOAD_IMAGES: '/projects/:id/upload',
+  MANAGE_LABELS: '/projects/:id/labels',
+  GALLERY: '/projects/:id/gallery',
   MODELS: '/models',
   SETTINGS: '/settings'
 };

@@ -10,6 +10,9 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
+import UploadImages from "./pages/UploadImages";
+import ManageLabels from "./pages/ManageLabels";
+import Gallery from "./pages/Gallery";
 import Models from "./pages/Models";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -30,6 +33,9 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/projects/:id" element={<ProjectDetail />} />
+              <Route path="/projects/:id/upload" element={<UploadImages />} />
+              <Route path="/projects/:id/labels" element={<ManageLabels />} />
+              <Route path="/projects/:id/gallery" element={<Gallery />} />
               <Route path="/models" element={<Models />} />
               <Route path="/settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

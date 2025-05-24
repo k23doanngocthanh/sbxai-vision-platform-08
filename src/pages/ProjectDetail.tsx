@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, 
   Upload, 
-  Images, 
+  Image as ImageIcon, 
   Tag,
   Calendar,
   User
@@ -130,7 +130,7 @@ export default function ProjectDetail() {
           <Card className="border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">Images</CardTitle>
-              <Images className="h-4 w-4 text-blue-600" />
+              <ImageIcon className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">0</div>
@@ -174,7 +174,10 @@ export default function ProjectDetail() {
 
         {/* Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="border-0 shadow-lg hover-lift cursor-pointer">
+          <Card 
+            className="border-0 shadow-lg hover-lift cursor-pointer"
+            onClick={() => navigate(`/projects/${id}/upload`)}
+          >
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Upload className="mr-2 h-5 w-5 text-blue-600" />
@@ -192,7 +195,10 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg hover-lift cursor-pointer">
+          <Card 
+            className="border-0 shadow-lg hover-lift cursor-pointer"
+            onClick={() => navigate(`/projects/${id}/labels`)}
+          >
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Tag className="mr-2 h-5 w-5 text-green-600" />
@@ -210,10 +216,13 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg hover-lift cursor-pointer">
+          <Card 
+            className="border-0 shadow-lg hover-lift cursor-pointer"
+            onClick={() => navigate(`/projects/${id}/gallery`)}
+          >
             <CardHeader>
               <CardTitle className="flex items-center">
-                <Images className="mr-2 h-5 w-5 text-purple-600" />
+                <ImageIcon className="mr-2 h-5 w-5 text-purple-600" />
                 View Gallery
               </CardTitle>
               <CardDescription>
@@ -222,7 +231,7 @@ export default function ProjectDetail() {
             </CardHeader>
             <CardContent>
               <Button variant="outline" className="w-full">
-                <Images className="mr-2 h-4 w-4" />
+                <ImageIcon className="mr-2 h-4 w-4" />
                 View Gallery
               </Button>
             </CardContent>
