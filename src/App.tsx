@@ -13,6 +13,8 @@ import ProjectDetail from "./pages/ProjectDetail";
 import UploadImages from "./pages/UploadImages";
 import ManageLabels from "./pages/ManageLabels";
 import Gallery from "./pages/Gallery";
+import AnnotationTool from "./pages/AnnotationTool";
+import AIPrediction from "./pages/AIPrediction";
 import Models from "./pages/Models";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -36,6 +38,8 @@ const App = () => (
               <Route path="/projects/:id/upload" element={<UploadImages />} />
               <Route path="/projects/:id/labels" element={<ManageLabels />} />
               <Route path="/projects/:id/gallery" element={<Gallery />} />
+              <Route path="/projects/:id/annotate" element={<AnnotationTool />} />
+              <Route path="/ai-prediction" element={<AIPrediction />} />
               <Route path="/models" element={<Models />} />
               <Route path="/settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

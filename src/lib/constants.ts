@@ -38,6 +38,8 @@ export const APP_ROUTES = {
   UPLOAD_IMAGES: '/projects/:id/upload',
   MANAGE_LABELS: '/projects/:id/labels',
   GALLERY: '/projects/:id/gallery',
+  ANNOTATION_TOOL: '/projects/:id/annotate',
+  AI_PREDICTION: '/ai-prediction',
   MODELS: '/models',
   SETTINGS: '/settings'
 };
