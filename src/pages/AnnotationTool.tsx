@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,6 +71,7 @@ export default function AnnotationTool() {
   const [scale, setScale] = useState(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imageBlob, setImageBlob] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || !projectId || !imageId) {
@@ -102,33 +102,33 @@ export default function AnnotationTool() {
         setLabels(labelsData.labels || []);
       }
 
-      // Load image data
-      const imageResponse = await fetch(
-        `${API_CONFIG.BASE_URL}/api/v1/yolo/rest/images/${imageId}`,
+      // Load project images to get image info
+      const imagesResponse = await fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECT_IMAGES(projectId!)}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         }
       );
 
-      if (imageResponse.ok) {
-        const imageBlob = await imageResponse.blob();
-        const imageUrl = URL.createObjectURL(imageBlob);
+      if (imagesResponse.ok) {
+        const imagesData = await imagesResponse.json();
+        const imageInfo = imagesData.images?.find((img: any) => img.id === imageId);
         
-        // Load image to get dimensions
-        const img = new Image();
-        img.onload = () => {
+        if (imageInfo) {
+          // Create a dummy URL since we can't access the actual file
+          const dummyUrl = `data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=`;
+          
           setImage({
             id: imageId!,
-            file_path: imageUrl,
-            original_filename: 'image.jpg',
-            image_width: img.width,
-            image_height: img.height
+            file_path: dummyUrl,
+            original_filename: imageInfo.original_filename || 'image.jpg',
+            image_width: imageInfo.image_width || 640,
+            image_height: imageInfo.image_height || 640
           });
-          drawCanvas();
-        };
-        img.src = imageUrl;
+        }
       }
 
       // Create or get annotation session
@@ -185,68 +185,84 @@ export default function AnnotationTool() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const img = new Image();
-    img.onload = () => {
-      // Set canvas size
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      
-      // Clear and draw image
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // Set canvas size based on image dimensions
+    canvas.width = image.image_width * scale;
+    canvas.height = image.image_height * scale;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw a placeholder background
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw grid pattern
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 1;
+    const gridSize = 20 * scale;
+    for (let x = 0; x < canvas.width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
 
-      // Draw annotations
-      annotations.forEach(annotation => {
-        const label = labels.find(l => l.id === annotation.label_id);
-        if (!label) return;
+    // Draw annotations
+    annotations.forEach(annotation => {
+      const label = labels.find(l => l.id === annotation.label_id);
+      if (!label) return;
 
+      ctx.strokeStyle = label.color;
+      ctx.fillStyle = label.color + '33';
+      ctx.lineWidth = 2;
+
+      if (annotation.bbox) {
+        const { x, y, width, height } = annotation.bbox;
+        ctx.strokeRect(x * scale, y * scale, width * scale, height * scale);
+        ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+        
+        // Draw label text
+        ctx.fillStyle = label.color;
+        ctx.font = '14px Arial';
+        ctx.fillText(label.name, x * scale, y * scale - 5);
+      }
+
+      if (annotation.polygon) {
+        ctx.beginPath();
+        annotation.polygon.forEach((point, index) => {
+          if (index === 0) {
+            ctx.moveTo(point.x * scale, point.y * scale);
+          } else {
+            ctx.lineTo(point.x * scale, point.y * scale);
+          }
+        });
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fill();
+      }
+    });
+
+    // Draw current annotation being created
+    if (currentAnnotation) {
+      const label = labels.find(l => l.id === currentAnnotation.label_id);
+      if (label) {
         ctx.strokeStyle = label.color;
         ctx.fillStyle = label.color + '33';
         ctx.lineWidth = 2;
 
-        if (annotation.bbox) {
-          const { x, y, width, height } = annotation.bbox;
+        if (currentAnnotation.bbox) {
+          const { x, y, width, height } = currentAnnotation.bbox;
           ctx.strokeRect(x * scale, y * scale, width * scale, height * scale);
           ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-          
-          // Draw label text
-          ctx.fillStyle = label.color;
-          ctx.font = '14px Arial';
-          ctx.fillText(label.name, x * scale, y * scale - 5);
-        }
-
-        if (annotation.polygon) {
-          ctx.beginPath();
-          annotation.polygon.forEach((point, index) => {
-            if (index === 0) {
-              ctx.moveTo(point.x * scale, point.y * scale);
-            } else {
-              ctx.lineTo(point.x * scale, point.y * scale);
-            }
-          });
-          ctx.closePath();
-          ctx.stroke();
-          ctx.fill();
-        }
-      });
-
-      // Draw current annotation being created
-      if (currentAnnotation) {
-        const label = labels.find(l => l.id === currentAnnotation.label_id);
-        if (label) {
-          ctx.strokeStyle = label.color;
-          ctx.fillStyle = label.color + '33';
-          ctx.lineWidth = 2;
-
-          if (currentAnnotation.bbox) {
-            const { x, y, width, height } = currentAnnotation.bbox;
-            ctx.strokeRect(x * scale, y * scale, width * scale, height * scale);
-            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-          }
         }
       }
-    };
-    img.src = image.file_path;
+    }
   }, [image, annotations, currentAnnotation, labels, scale]);
 
   useEffect(() => {
@@ -475,6 +491,12 @@ export default function AnnotationTool() {
                     />
                   )}
                 </div>
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> Image display is currently using a placeholder. 
+                    The annotation functionality works with the actual image dimensions ({image?.image_width} × {image?.image_height}).
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -489,20 +511,33 @@ export default function AnnotationTool() {
               <div>
                 <h4 className="font-medium mb-2">Select Label</h4>
                 <div className="space-y-2">
-                  {labels.map((label) => (
-                    <Button
-                      key={label.id}
-                      variant={selectedLabel?.id === label.id ? "default" : "outline"}
-                      className="w-full justify-start"
-                      onClick={() => setSelectedLabel(label)}
-                    >
-                      <div 
-                        className="w-4 h-4 rounded mr-2"
-                        style={{ backgroundColor: label.color }}
-                      />
-                      {label.name}
-                    </Button>
-                  ))}
+                  {labels.length > 0 ? (
+                    labels.map((label) => (
+                      <Button
+                        key={label.id}
+                        variant={selectedLabel?.id === label.id ? "default" : "outline"}
+                        className="w-full justify-start"
+                        onClick={() => setSelectedLabel(label)}
+                      >
+                        <div 
+                          className="w-4 h-4 rounded mr-2"
+                          style={{ backgroundColor: label.color }}
+                        />
+                        {label.name}
+                      </Button>
+                    ))
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-gray-500 mb-2">No labels found</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/projects/${projectId}/labels`)}
+                      >
+                        Create Labels
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 

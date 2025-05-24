@@ -1,5 +1,4 @@
-
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,9 +72,9 @@ export default function AIPrediction() {
   const [activeTab, setActiveTab] = useState<'detection' | 'ocr'>('detection');
   const [modelsLoaded, setModelsLoaded] = useState(false);
 
-  useState(() => {
+  useEffect(() => {
     loadModels();
-  });
+  }, []);
 
   const loadModels = async () => {
     try {
