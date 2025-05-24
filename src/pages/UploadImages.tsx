@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,13 +56,15 @@ export default function UploadImages() {
   const handleFileSelect = useCallback((selectedFiles: FileList) => {
     const newFiles = Array.from(selectedFiles)
       .filter(file => file.type.startsWith('image/'))
-      .map(file => ({
-        ...file,
-        id: generateFileId(),
-        preview: URL.createObjectURL(file),
-        status: 'pending' as const,
-        progress: 0
-      }));
+      .map(file => {
+        const fileWithPreview = Object.assign(file, {
+          id: generateFileId(),
+          preview: URL.createObjectURL(file),
+          status: 'pending' as const,
+          progress: 0
+        });
+        return fileWithPreview;
+      });
 
     if (newFiles.length === 0) {
       toast({
@@ -135,7 +136,9 @@ export default function UploadImages() {
       const formData = new FormData();
       pendingFiles.forEach(file => {
         console.log('Appending file:', file.name, file.type, file.size);
-        formData.append('files', file, file.name);
+        // Remove the custom properties and just append the original File object
+        const originalFile = new File([file], file.name, { type: file.type });
+        formData.append('files', originalFile);
       });
 
       console.log('FormData entries:');
