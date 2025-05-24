@@ -156,6 +156,14 @@ export default function AIPrediction() {
     }
   };
 
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return '#22c55e'; // Green - High confidence
+    if (confidence >= 0.6) return '#3b82f6'; // Blue - Medium-high confidence
+    if (confidence >= 0.4) return '#f59e0b'; // Orange - Medium confidence
+    if (confidence >= 0.2) return '#ef4444'; // Red - Low confidence
+    return '#6b7280'; // Gray - Very low confidence
+  };
+
   const drawDetections = (detections: Detection[]) => {
     if (!canvasRef.current || !imagePreview) return;
 
@@ -171,30 +179,31 @@ export default function AIPrediction() {
       // Draw image
       ctx.drawImage(img, 0, 0);
 
-      // Draw detections
-      detections.forEach((detection, index) => {
+      // Draw detections with color-coded confidence
+      detections.forEach((detection) => {
         const { bbox, class_name, confidence } = detection;
-        
-        // Different colors for different classes
-        const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
-        const color = colors[index % colors.length];
+        const color = getConfidenceColor(confidence);
         
         ctx.strokeStyle = color;
-        ctx.fillStyle = color + '33';
-        ctx.lineWidth = 2;
+        ctx.fillStyle = color + '40'; // Semi-transparent fill
+        ctx.lineWidth = 3;
 
-        // Draw bounding box
-        ctx.strokeRect(bbox.x, bbox.y, bbox.width, bbox.height);
+        // Draw semi-transparent bounding box
         ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height);
+        ctx.strokeRect(bbox.x, bbox.y, bbox.width, bbox.height);
 
-        // Draw label
-        ctx.fillStyle = color;
-        ctx.font = '16px Arial';
-        const label = `${class_name} (${(confidence * 100).toFixed(1)}%)`;
-        const textWidth = ctx.measureText(label).width;
+        // Draw label background
+        ctx.font = 'bold 16px Arial';
+        const label = `${class_name} ${(confidence * 100).toFixed(1)}%`;
+        const textMetrics = ctx.measureText(label);
+        const textWidth = textMetrics.width;
+        const textHeight = 20;
         
+        // Label background
         ctx.fillStyle = color;
-        ctx.fillRect(bbox.x, bbox.y - 25, textWidth + 10, 25);
+        ctx.fillRect(bbox.x, bbox.y - textHeight - 5, textWidth + 10, textHeight + 5);
+        
+        // Label text
         ctx.fillStyle = 'white';
         ctx.fillText(label, bbox.x + 5, bbox.y - 8);
 
@@ -202,8 +211,22 @@ export default function AIPrediction() {
         if (detection.text) {
           ctx.fillStyle = color;
           ctx.font = '14px Arial';
-          ctx.fillText(detection.text, bbox.x, bbox.y + bbox.height + 20);
+          const textLines = detection.text.split('\n');
+          textLines.forEach((line, index) => {
+            ctx.fillText(line, bbox.x, bbox.y + bbox.height + 20 + (index * 18));
+          });
         }
+
+        // Draw confidence indicator (small circle)
+        const circleX = bbox.x + bbox.width - 15;
+        const circleY = bbox.y + 15;
+        ctx.beginPath();
+        ctx.arc(circleX, circleY, 8, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
       });
     };
     img.src = imagePreview;
@@ -395,6 +418,35 @@ export default function AIPrediction() {
                   </div>
                 </div>
               )}
+
+              {/* Confidence Legend */}
+              {predictionResult && (
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium text-sm mb-2">Confidence Legend</h4>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-green-500 rounded mr-2"></div>
+                      <span>High (80%+)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
+                      <span>Medium-High (60-80%)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-orange-500 rounded mr-2"></div>
+                      <span>Medium (40-60%)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-red-500 rounded mr-2"></div>
+                      <span>Low (20-40%)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-gray-500 rounded mr-2"></div>
+                      <span>Very Low (&lt;20%)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -432,23 +484,29 @@ export default function AIPrediction() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {predictionResult.detections.map((detection, index) => (
-                            <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-medium">{detection.class_name}</span>
-                                <Badge>{(detection.confidence * 100).toFixed(1)}%</Badge>
+                          {predictionResult.detections.map((detection, index) => {
+                            const confidenceColor = getConfidenceColor(detection.confidence);
+                            return (
+                              <div key={index} className="p-3 bg-gray-50 rounded-lg border-l-4" 
+                                   style={{ borderLeftColor: confidenceColor }}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="font-medium">{detection.class_name}</span>
+                                  <Badge style={{ backgroundColor: confidenceColor, color: 'white' }}>
+                                    {(detection.confidence * 100).toFixed(1)}%
+                                  </Badge>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  <div>Position: ({Math.round(detection.bbox.x)}, {Math.round(detection.bbox.y)})</div>
+                                  <div>Size: {Math.round(detection.bbox.width)} × {Math.round(detection.bbox.height)}</div>
+                                  {detection.text && (
+                                    <div className="mt-2 p-2 bg-white rounded border">
+                                      <strong>Text:</strong> {detection.text}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-sm text-gray-600">
-                                <div>Position: ({detection.bbox.x}, {detection.bbox.y})</div>
-                                <div>Size: {detection.bbox.width} × {detection.bbox.height}</div>
-                                {detection.text && (
-                                  <div className="mt-2 p-2 bg-white rounded border">
-                                    <strong>Text:</strong> {detection.text}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
