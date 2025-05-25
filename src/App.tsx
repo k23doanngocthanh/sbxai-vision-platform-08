@@ -17,6 +17,7 @@ import AnnotationTool from "./pages/AnnotationTool";
 import AIPrediction from "./pages/AIPrediction";
 import Models from "./pages/Models";
 import Settings from "./pages/Settings";
+import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => (
               <Route path="/ai-prediction" element={<AIPrediction />} />
               <Route path="/models" element={<Models />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/api-docs" element={<APIDocumentation />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -27,6 +27,9 @@ export const API_CONFIG = {
     
     // API Keys
     API_KEYS: '/api/v1/yolo/rest/api-keys',
+    
+    // Documentation
+    OPENAPI_SPEC: '/openapi.json',
   }
 };
 
@@ -41,7 +44,8 @@ export const APP_ROUTES = {
   ANNOTATION_TOOL: '/projects/:id/annotate',
   AI_PREDICTION: '/ai-prediction',
   MODELS: '/models',
-  SETTINGS: '/settings'
+  SETTINGS: '/settings',
+  API_DOCS: '/api-docs'
 };
 
 export const STORAGE_KEYS = {
