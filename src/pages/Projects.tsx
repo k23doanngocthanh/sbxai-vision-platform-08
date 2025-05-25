@@ -64,7 +64,7 @@ export default function Projects() {
   const [newProjectName, setNewProjectName] = useState('');
   const [creating, setCreating] = useState(false);
   const [models, setModels] = useState<AIModel[]>([]);
-  const [selectedModelId, setSelectedModelId] = useState<string>('');
+  const [selectedModelId, setSelectedModelId] = useState<string>('none');
   const [modelsLoading, setModelsLoading] = useState(false);
 
   useEffect(() => {
@@ -146,8 +146,8 @@ export default function Projects() {
       const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       const requestBody: any = { name: newProjectName };
       
-      // Add auto AI model if selected
-      if (selectedModelId) {
+      // Add auto AI model if selected (and not "none")
+      if (selectedModelId && selectedModelId !== 'none') {
         requestBody.auto_ai_model_id = selectedModelId;
       }
 
@@ -168,9 +168,9 @@ export default function Projects() {
         setProjects([newProject, ...projects]);
         setCreateDialogOpen(false);
         setNewProjectName('');
-        setSelectedModelId('');
+        setSelectedModelId('none');
         
-        const selectedModel = models.find(m => m.id === selectedModelId);
+        const selectedModel = selectedModelId !== 'none' ? models.find(m => m.id === selectedModelId) : null;
         const successMessage = selectedModel 
           ? `Project "${newProjectName}" created with auto-labeling using ${selectedModel.name}!`
           : `Project "${newProjectName}" created successfully!`;
@@ -295,13 +295,13 @@ export default function Projects() {
                       <SelectValue placeholder="Choose model for auto-labeling" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">
+                      <SelectItem value="none">
                         <div className="flex items-center">
                           <span>No auto-labeling</span>
                         </div>
                       </SelectItem>
                       {modelsLoading ? (
-                        <SelectItem value="" disabled>
+                        <SelectItem value="loading" disabled>
                           <div className="flex items-center">
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
                             Loading models...
@@ -326,7 +326,7 @@ export default function Projects() {
                       )}
                     </SelectContent>
                   </Select>
-                  {selectedModelId && (
+                  {selectedModelId && selectedModelId !== 'none' && (
                     <p className="text-xs text-blue-600 mt-1 flex items-center">
                       <Bot className="h-3 w-3 mr-1" />
                       Auto-labeling will be applied to uploaded images
@@ -339,7 +339,7 @@ export default function Projects() {
                   variant="outline" 
                   onClick={() => {
                     setCreateDialogOpen(false);
-                    setSelectedModelId('');
+                    setSelectedModelId('none');
                   }}
                 >
                   Cancel
