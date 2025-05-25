@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { User, LogOut, Settings, BarChart3 } from 'lucide-react';
+import { User, LogOut, Settings, BarChart3, FileText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export const Header = () => {
@@ -49,6 +49,9 @@ export const Header = () => {
             <Link to="/models" className="text-gray-600 hover:text-gray-900 transition-colors">
               AI Models
             </Link>
+            <Link to="/api-docs" className="text-gray-600 hover:text-gray-900 transition-colors">
+              API Docs
+            </Link>
             {isAuthenticated && (
               <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 transition-colors">
                 Dashboard
@@ -82,6 +85,10 @@ export const Header = () => {
                   <DropdownMenuItem onClick={() => navigate('/dashboard')}>
                     <BarChart3 className="mr-2 h-4 w-4" />
                     Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/api-docs')}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    API Documentation
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/settings')}>
                     <Settings className="mr-2 h-4 w-4" />
