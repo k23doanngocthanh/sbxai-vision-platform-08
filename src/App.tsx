@@ -16,6 +16,9 @@ import Gallery from "./pages/Gallery";
 import AnnotationTool from "./pages/AnnotationTool";
 import AIPrediction from "./pages/AIPrediction";
 import Models from "./pages/Models";
+import Workflows from "./pages/Workflows";
+import WorkflowCreate from "./pages/WorkflowCreate";
+import Jobs from "./pages/Jobs";
 import Settings from "./pages/Settings";
 import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
@@ -42,6 +45,9 @@ const App = () => (
               <Route path="/projects/:id/annotate" element={<AnnotationTool />} />
               <Route path="/ai-prediction" element={<AIPrediction />} />
               <Route path="/models" element={<Models />} />
+              <Route path="/workflows" element={<Workflows />} />
+              <Route path="/workflows/create" element={<WorkflowCreate />} />
+              <Route path="/jobs" element={<Jobs />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/api-docs" element={<APIDocumentation />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

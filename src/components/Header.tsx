@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { User, LogOut, Settings, BarChart3, FileText } from 'lucide-react';
+import { User, LogOut, Settings, BarChart3, FileText, Workflow, Briefcase } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export const Header = () => {
@@ -53,9 +53,17 @@ export const Header = () => {
               API Docs
             </Link>
             {isAuthenticated && (
-              <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 transition-colors">
-                Dashboard
-              </Link>
+              <>
+                <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 transition-colors">
+                  Dashboard
+                </Link>
+                <Link to="/workflows" className="text-gray-600 hover:text-gray-900 transition-colors">
+                  Workflows
+                </Link>
+                <Link to="/jobs" className="text-gray-600 hover:text-gray-900 transition-colors">
+                  Jobs
+                </Link>
+              </>
             )}
           </nav>
 
@@ -85,6 +93,14 @@ export const Header = () => {
                   <DropdownMenuItem onClick={() => navigate('/dashboard')}>
                     <BarChart3 className="mr-2 h-4 w-4" />
                     Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/workflows')}>
+                    <Workflow className="mr-2 h-4 w-4" />
+                    Workflows
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/jobs')}>
+                    <Briefcase className="mr-2 h-4 w-4" />
+                    Jobs
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/api-docs')}>
                     <FileText className="mr-2 h-4 w-4" />
