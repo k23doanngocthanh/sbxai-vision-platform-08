@@ -1,153 +1,170 @@
-import { useEffect, useState, useCallback } from 'react';
+
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, 
   Upload, 
-  Image as ImageIcon,
   X,
+  FileImage,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Bot,
+  Eye,
+  FileText
 } from 'lucide-react';
 import { API_CONFIG, STORAGE_KEYS } from '@/lib/constants';
 
-interface UploadedImage {
-  image_id: string;
-  original_filename: string;
-  file_path: string;
-  file_size: number;
-  dimensions?: {
-    width: number;
-    height: number;
-  };
+interface Project {
+  project_id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  auto_ai_model_id?: string;
 }
 
-interface FileWithPreview extends File {
-  preview?: string;
+interface AIModel {
   id: string;
-  status: 'pending' | 'uploading' | 'success' | 'error';
+  name: string;
+  description: string;
+  type: string;
+  confidence_threshold: number;
+}
+
+interface UploadFile {
+  file: File;
+  id: string;
+  status: 'pending' | 'uploading' | 'processing' | 'success' | 'error';
   progress: number;
   error?: string;
+  imageId?: string;
 }
 
 export default function UploadImages() {
-  const { id: projectId } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [files, setFiles] = useState<FileWithPreview[]>([]);
+  const [project, setProject] = useState<Project | null>(null);
+  const [aiModel, setAiModel] = useState<AIModel | null>(null);
+  const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated || !projectId) {
+    if (!isAuthenticated) {
+      navigate('/');
+      return;
+    }
+
+    if (!id) {
       navigate('/projects');
       return;
     }
-  }, [isAuthenticated, projectId, navigate]);
 
-  const generateFileId = () => Math.random().toString(36).substring(2, 15);
+    fetchProject();
+  }, [id, isAuthenticated, navigate]);
 
-  const handleFileSelect = useCallback((selectedFiles: FileList) => {
-    const newFiles = Array.from(selectedFiles)
-      .filter(file => file.type.startsWith('image/'))
-      .map(file => {
-        const fileWithPreview = Object.assign(file, {
-          id: generateFileId(),
-          preview: URL.createObjectURL(file),
-          status: 'pending' as const,
-          progress: 0
-        });
-        return fileWithPreview;
-      });
+  const fetchProject = async () => {
+    if (!id) return;
 
-    if (newFiles.length === 0) {
+    try {
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECTS}/${id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const projectData = await response.json();
+        setProject(projectData);
+        
+        // Load AI model if project has auto-labeling enabled
+        if (projectData.auto_ai_model_id) {
+          await fetchAIModel(projectData.auto_ai_model_id);
+        }
+      } else {
+        throw new Error('Failed to fetch project');
+      }
+    } catch (error) {
+      console.error('Error fetching project:', error);
       toast({
-        title: "Invalid files",
-        description: "Please select only image files",
+        title: "Error",
+        description: "Failed to load project details",
         variant: "destructive",
       });
-      return;
+      navigate('/projects');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAIModel = async (modelId: string) => {
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const model = data.models?.find((m: AIModel) => m.id === modelId);
+        if (model) {
+          setAiModel(model);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching AI model:', error);
+    }
+  };
+
+  const handleFileSelect = (selectedFiles: FileList | null) => {
+    if (!selectedFiles) return;
+
+    const newFiles: UploadFile[] = Array.from(selectedFiles)
+      .filter(file => file.type.startsWith('image/'))
+      .map(file => ({
+        file,
+        id: Math.random().toString(36).substr(2, 9),
+        status: 'pending',
+        progress: 0
+      }));
+
+    if (newFiles.length !== selectedFiles.length) {
+      toast({
+        title: "Warning",
+        description: "Only image files are supported",
+        variant: "destructive",
+      });
     }
 
     setFiles(prev => [...prev, ...newFiles]);
-  }, [toast]);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const droppedFiles = e.dataTransfer.files;
-    if (droppedFiles.length > 0) {
-      handleFileSelect(droppedFiles);
-    }
-  }, [handleFileSelect]);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const removeFile = (fileId: string) => {
-    setFiles(prev => {
-      const file = prev.find(f => f.id === fileId);
-      if (file?.preview) {
-        URL.revokeObjectURL(file.preview);
-      }
-      return prev.filter(f => f.id !== fileId);
-    });
   };
 
-  const uploadFiles = async () => {
-    if (files.length === 0 || !projectId) return;
-
-    setIsUploading(true);
+  const uploadFile = async (uploadFile: UploadFile) => {
+    const { file, id } = uploadFile;
     
     try {
-      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-      
-      const pendingFiles = files.filter(f => f.status === 'pending');
-      
-      if (pendingFiles.length === 0) {
-        toast({
-          title: "No files to upload",
-          description: "All files have already been uploaded",
-        });
-        setIsUploading(false);
-        return;
-      }
-
-      // Update files status to uploading
+      // Update status to uploading
       setFiles(prev => prev.map(f => 
-        f.status === 'pending' ? { ...f, status: 'uploading' as const } : f
+        f.id === id ? { ...f, status: 'uploading', progress: 20 } : f
       ));
 
-      // Create FormData and append files correctly
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       const formData = new FormData();
-      pendingFiles.forEach(file => {
-        console.log('Appending file:', file.name, file.type, file.size);
-        // Remove the custom properties and just append the original File object
-        const originalFile = new File([file], file.name, { type: file.type });
-        formData.append('files', originalFile);
-      });
-
-      console.log('FormData entries:');
-      for (let [key, value] of formData.entries()) {
-        console.log(key, value);
-      }
+      formData.append('file', file);
 
       const response = await fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECT_IMAGES(projectId)}`,
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECT_IMAGES(id!)}`,
         {
           method: 'POST',
           headers: {
@@ -157,79 +174,226 @@ export default function UploadImages() {
         }
       );
 
-      const responseText = await response.text();
-      console.log('Response status:', response.status);
-      console.log('Response text:', responseText);
-
       if (response.ok) {
-        const result = JSON.parse(responseText);
+        const imageData = await response.json();
         
-        // Update files status to success
+        // Update progress
         setFiles(prev => prev.map(f => 
-          f.status === 'uploading' ? { ...f, status: 'success' as const, progress: 100 } : f
+          f.id === id ? { ...f, progress: 60, imageId: imageData.id } : f
         ));
 
-        toast({
-          title: "Success",
-          description: `Successfully uploaded ${result.images?.length || pendingFiles.length} images`,
-        });
-
-        // Auto navigate to gallery after 2 seconds
-        setTimeout(() => {
-          navigate(`/projects/${projectId}/gallery`);
-        }, 2000);
-      } else {
-        let errorMessage = 'Failed to upload images';
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.detail || errorData.message || errorMessage;
-        } catch (e) {
-          console.error('Error parsing response:', e);
+        // Run AI prediction if model is available
+        if (aiModel && imageData.id) {
+          await runAIPrediction(uploadFile, imageData.id);
+        } else {
+          // Mark as success if no AI processing needed
+          setFiles(prev => prev.map(f => 
+            f.id === id ? { ...f, status: 'success', progress: 100 } : f
+          ));
         }
-        throw new Error(errorMessage);
+      } else {
+        throw new Error('Upload failed');
       }
     } catch (error) {
-      console.error('Error uploading images:', error);
-      
-      // Update files status to error
+      console.error('Error uploading file:', error);
       setFiles(prev => prev.map(f => 
-        f.status === 'uploading' ? { 
+        f.id === id ? { 
           ...f, 
-          status: 'error' as const, 
-          error: error instanceof Error ? error.message : 'Upload failed' 
+          status: 'error', 
+          progress: 0,
+          error: 'Upload failed'
         } : f
       ));
-
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to upload images",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const runAIPrediction = async (uploadFile: UploadFile, imageId: string) => {
+    if (!aiModel) return;
+
+    try {
+      // Update status to processing
+      setFiles(prev => prev.map(f => 
+        f.id === uploadFile.id ? { ...f, status: 'processing', progress: 80 } : f
+      ));
+
+      const formData = new FormData();
+      formData.append('file', uploadFile.file);
+      formData.append('confidence', aiModel.confidence_threshold.toString());
+
+      // Determine if it's an OCR model or detection model
+      const isOCR = aiModel.type.toLowerCase().includes('ocr');
+      const endpoint = isOCR 
+        ? API_CONFIG.ENDPOINTS.OCR(aiModel.id)
+        : API_CONFIG.ENDPOINTS.PREDICT(aiModel.id);
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const predictionResult = await response.json();
+        
+        // Create annotation session with the prediction results
+        await createAnnotationSession(imageId, predictionResult);
+        
+        setFiles(prev => prev.map(f => 
+          f.id === uploadFile.id ? { ...f, status: 'success', progress: 100 } : f
+        ));
+      } else {
+        throw new Error('AI prediction failed');
+      }
+    } catch (error) {
+      console.error('Error running AI prediction:', error);
+      // Still mark as success since upload worked, just AI failed
+      setFiles(prev => prev.map(f => 
+        f.id === uploadFile.id ? { 
+          ...f, 
+          status: 'success', 
+          progress: 100,
+          error: 'AI processing failed, but image uploaded successfully'
+        } : f
+      ));
+    }
   };
 
-  const getStatusIcon = (status: FileWithPreview['status']) => {
+  const createAnnotationSession = async (imageId: string, predictionResult: any) => {
+    try {
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      
+      // Create annotation session
+      const sessionResponse = await fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.IMAGE_SESSIONS(imageId)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            auto_generated: true,
+            ai_model_id: aiModel?.id
+          })
+        }
+      );
+
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        
+        // Add detection results as session items
+        if (predictionResult.detections && predictionResult.detections.length > 0) {
+          for (const detection of predictionResult.detections) {
+            await fetch(
+              `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SESSION_ITEMS(sessionData.id)}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  label: detection.label,
+                  confidence: detection.confidence,
+                  bbox: detection.bbox,
+                  text: detection.text || null,
+                  auto_generated: true
+                })
+              }
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error creating annotation session:', error);
+    }
+  };
+
+  const uploadAllFiles = async () => {
+    const pendingFiles = files.filter(f => f.status === 'pending');
+    
+    for (const file of pendingFiles) {
+      await uploadFile(file);
+    }
+
+    toast({
+      title: "Upload Complete",
+      description: `Successfully processed ${files.length} image(s)${aiModel ? ' with AI auto-labeling' : ''}`,
+    });
+  };
+
+  const removeFile = (id: string) => {
+    setFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileSelect(e.dataTransfer.files);
+  };
+
+  const getStatusIcon = (status: string) => {
     switch (status) {
       case 'success':
-        return <CheckCircle className="h-5 w-5 text-green-600" />;
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'error':
-        return <AlertCircle className="h-5 w-5 text-red-600" />;
+        return <AlertCircle className="h-4 w-4 text-red-600" />;
       case 'uploading':
-        return <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />;
+      case 'processing':
+        return <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600" />;
       default:
-        return <ImageIcon className="h-5 w-5 text-gray-400" />;
+        return <FileImage className="h-4 w-4 text-gray-400" />;
     }
   };
+
+  const getStatusText = (file: UploadFile) => {
+    switch (file.status) {
+      case 'uploading':
+        return 'Uploading...';
+      case 'processing':
+        return aiModel ? `Processing with ${aiModel.name}...` : 'Processing...';
+      case 'success':
+        return file.error || 'Complete';
+      case 'error':
+        return file.error || 'Failed';
+      default:
+        return 'Ready';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 pt-16 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading project...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="min-h-screen bg-gray-50 pt-16 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Project not found</h1>
+          <Button onClick={() => navigate('/projects')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Projects
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pt-16">
@@ -238,17 +402,23 @@ export default function UploadImages() {
         <div className="flex items-center mb-8">
           <Button 
             variant="ghost" 
-            onClick={() => navigate(`/projects/${projectId}`)}
+            onClick={() => navigate(`/projects/${id}`)}
             className="mr-4"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Project
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Upload Images</h1>
-            <p className="text-gray-600">
-              Add images to your annotation project
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
+            <p className="text-gray-600">Upload images to your annotation project</p>
+            {aiModel && (
+              <div className="flex items-center mt-2">
+                <Badge variant="secondary" className="flex items-center">
+                  <Bot className="h-3 w-3 mr-1" />
+                  Auto-labeling with {aiModel.name}
+                </Badge>
+              </div>
+            )}
           </div>
         </div>
 
@@ -256,98 +426,87 @@ export default function UploadImages() {
           {/* Upload Area */}
           <Card className="border-0 shadow-lg">
             <CardHeader>
-              <CardTitle>Select Images</CardTitle>
+              <CardTitle className="flex items-center">
+                <Upload className="mr-2 h-5 w-5" />
+                Upload Images
+              </CardTitle>
               <CardDescription>
-                Drag and drop images or click to browse
+                {aiModel 
+                  ? `Images will be automatically labeled using ${aiModel.name}`
+                  : 'Drag and drop images or click to select files'
+                }
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  isDragging
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-300 hover:border-gray-400'
+                  isDragging 
+                    ? 'border-purple-400 bg-purple-50' 
+                    : 'border-gray-300 hover:border-purple-400'
                 }`}
-                onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
               >
                 <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-lg font-medium text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Drop images here
-                </p>
-                <p className="text-gray-500 mb-4">
+                </h3>
+                <p className="text-gray-600 mb-4">
                   or click to browse files
                 </p>
                 <input
+                  ref={fileInputRef}
                   type="file"
                   multiple
                   accept="image/*"
-                  onChange={(e) => e.target.files && handleFileSelect(e.target.files)}
+                  onChange={(e) => handleFileSelect(e.target.files)}
                   className="hidden"
-                  id="file-upload"
                 />
-                <Button asChild className="gradient-primary text-white">
-                  <label htmlFor="file-upload" className="cursor-pointer">
-                    <Upload className="mr-2 h-4 w-4" />
-                    Browse Files
-                  </label>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="outline"
+                >
+                  Select Images
                 </Button>
               </div>
 
               {files.length > 0 && (
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-medium text-gray-900">
-                      Selected Files ({files.length})
-                    </h3>
+                    <h4 className="font-medium">Files ({files.length})</h4>
                     <Button
-                      onClick={uploadFiles}
-                      disabled={isUploading || files.every(f => f.status !== 'pending')}
+                      onClick={uploadAllFiles}
+                      disabled={files.every(f => f.status !== 'pending')}
                       className="gradient-primary text-white"
                     >
-                      <Upload className="mr-2 h-4 w-4" />
-                      {isUploading ? 'Uploading...' : 'Upload All'}
+                      Upload All
                     </Button>
                   </div>
 
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
                     {files.map((file) => (
                       <div key={file.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-shrink-0">
-                          {file.preview && (
-                            <img
-                              src={file.preview}
-                              alt={file.name}
-                              className="h-12 w-12 object-cover rounded"
-                            />
-                          )}
-                        </div>
+                        {getStatusIcon(file.status)}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {file.name}
+                          <p className="font-medium text-sm text-gray-900 truncate">
+                            {file.file.name}
                           </p>
-                          <p className="text-sm text-gray-500">
-                            {formatFileSize(file.size)}
+                          <p className="text-xs text-gray-500">
+                            {getStatusText(file)} • {(file.file.size / 1024 / 1024).toFixed(2)} MB
                           </p>
-                          {file.status === 'uploading' && (
+                          {file.progress > 0 && file.status !== 'success' && file.status !== 'error' && (
                             <Progress value={file.progress} className="mt-1" />
                           )}
-                          {file.error && (
-                            <p className="text-sm text-red-600 mt-1">{file.error}</p>
-                          )}
                         </div>
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(file.status)}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeFile(file.id)}
-                            disabled={file.status === 'uploading'}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(file.id)}
+                          disabled={file.status === 'uploading' || file.status === 'processing'}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -356,52 +515,81 @@ export default function UploadImages() {
             </CardContent>
           </Card>
 
-          {/* Upload Guidelines */}
+          {/* Instructions */}
           <Card className="border-0 shadow-lg">
             <CardHeader>
-              <CardTitle>Upload Guidelines</CardTitle>
-              <CardDescription>
-                Follow these guidelines for best results
-              </CardDescription>
+              <CardTitle>Upload Instructions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                <div>
-                  <h4 className="font-medium">Supported Formats</h4>
-                  <p className="text-sm text-gray-600">
-                    JPG, JPEG, PNG, WebP
-                  </p>
+              <div className="space-y-3">
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-semibold text-purple-600">1</span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Select Images</h4>
+                    <p className="text-sm text-gray-600">
+                      Choose image files (JPG, PNG, etc.) from your device
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-semibold text-purple-600">2</span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Automatic Processing</h4>
+                    <p className="text-sm text-gray-600">
+                      {aiModel 
+                        ? `Images will be automatically analyzed using ${aiModel.name} for detection and labeling`
+                        : 'Images will be uploaded to your project for manual annotation'
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-semibold text-purple-600">3</span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Review Results</h4>
+                    <p className="text-sm text-gray-600">
+                      {aiModel 
+                        ? 'Review and refine the automatically generated annotations in the gallery'
+                        : 'Start annotating your images using the annotation tool'
+                      }
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                <div>
-                  <h4 className="font-medium">File Size</h4>
-                  <p className="text-sm text-gray-600">
-                    Maximum 10MB per image
+              {aiModel && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center space-x-2 mb-2">
+                    {aiModel.type.toLowerCase().includes('ocr') ? (
+                      <FileText className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-blue-600" />
+                    )}
+                    <h4 className="font-medium text-blue-900">AI Model Info</h4>
+                  </div>
+                  <p className="text-sm text-blue-800">{aiModel.description}</p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Confidence threshold: {(aiModel.confidence_threshold * 100).toFixed(0)}%
                   </p>
                 </div>
-              </div>
+              )}
 
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                <div>
-                  <h4 className="font-medium">Image Quality</h4>
-                  <p className="text-sm text-gray-600">
-                    High resolution images work best for annotation
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                <div>
-                  <h4 className="font-medium">Batch Upload</h4>
-                  <p className="text-sm text-gray-600">
-                    You can upload multiple images at once
-                  </p>
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-sm mb-2">Supported Formats</h4>
+                <div className="flex flex-wrap gap-2">
+                  {['JPG', 'PNG', 'JPEG', 'WEBP', 'GIF'].map(format => (
+                    <Badge key={format} variant="outline" className="text-xs">
+                      {format}
+                    </Badge>
+                  ))}
                 </div>
               </div>
             </CardContent>
@@ -411,3 +599,4 @@ export default function UploadImages() {
     </div>
   );
 }
+

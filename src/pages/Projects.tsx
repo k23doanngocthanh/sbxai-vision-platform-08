@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -23,7 +29,10 @@ import {
   Calendar,
   Images,
   Trash2,
-  FolderOpen
+  FolderOpen,
+  Bot,
+  Eye,
+  FileText
 } from 'lucide-react';
 import { API_CONFIG, STORAGE_KEYS } from '@/lib/constants';
 
@@ -33,6 +42,15 @@ interface Project {
   name: string;
   created_at: string;
   image_count?: number;
+  auto_ai_model_id?: string;
+}
+
+interface AIModel {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  confidence_threshold: number;
 }
 
 export default function Projects() {
@@ -45,6 +63,9 @@ export default function Projects() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [models, setModels] = useState<AIModel[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
+  const [modelsLoading, setModelsLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -54,6 +75,33 @@ export default function Projects() {
 
     fetchProjects();
   }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (createDialogOpen) {
+      loadModels();
+    }
+  }, [createDialogOpen]);
+
+  const loadModels = async () => {
+    setModelsLoading(true);
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setModels(data.models || []);
+      }
+    } catch (error) {
+      console.error('Error loading models:', error);
+      toast({
+        title: "Warning",
+        description: "Failed to load AI models. You can still create a project without auto-labeling.",
+        variant: "destructive",
+      });
+    } finally {
+      setModelsLoading(false);
+    }
+  };
 
   const fetchProjects = async () => {
     try {
@@ -96,6 +144,13 @@ export default function Projects() {
     setCreating(true);
     try {
       const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      const requestBody: any = { name: newProjectName };
+      
+      // Add auto AI model if selected
+      if (selectedModelId) {
+        requestBody.auto_ai_model_id = selectedModelId;
+      }
+
       const response = await fetch(
         `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECTS}`,
         {
@@ -104,7 +159,7 @@ export default function Projects() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ name: newProjectName })
+          body: JSON.stringify(requestBody)
         }
       );
 
@@ -113,9 +168,16 @@ export default function Projects() {
         setProjects([newProject, ...projects]);
         setCreateDialogOpen(false);
         setNewProjectName('');
+        setSelectedModelId('');
+        
+        const selectedModel = models.find(m => m.id === selectedModelId);
+        const successMessage = selectedModel 
+          ? `Project "${newProjectName}" created with auto-labeling using ${selectedModel.name}!`
+          : `Project "${newProjectName}" created successfully!`;
+          
         toast({
           title: "Success",
-          description: `Project "${newProjectName}" created successfully!`,
+          description: successMessage,
         });
       } else {
         throw new Error('Failed to create project');
@@ -172,6 +234,11 @@ export default function Projects() {
     project.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getProjectModelInfo = (project: Project) => {
+    if (!project.auto_ai_model_id) return null;
+    return models.find(m => m.id === project.auto_ai_model_id);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 pt-16 flex items-center justify-center">
@@ -202,11 +269,11 @@ export default function Projects() {
                 New Project
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-white">
+            <DialogContent className="bg-white max-w-md">
               <DialogHeader>
                 <DialogTitle>Create New Project</DialogTitle>
                 <DialogDescription>
-                  Give your annotation project a descriptive name.
+                  Create an annotation project with optional auto-labeling using AI models.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -220,11 +287,60 @@ export default function Projects() {
                     onKeyPress={(e) => e.key === 'Enter' && createProject()}
                   />
                 </div>
+
+                <div>
+                  <Label htmlFor="model">AI Model (Optional)</Label>
+                  <Select value={selectedModelId} onValueChange={setSelectedModelId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose model for auto-labeling" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">
+                        <div className="flex items-center">
+                          <span>No auto-labeling</span>
+                        </div>
+                      </SelectItem>
+                      {modelsLoading ? (
+                        <SelectItem value="" disabled>
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
+                            Loading models...
+                          </div>
+                        </SelectItem>
+                      ) : (
+                        models.map(model => (
+                          <SelectItem key={model.id} value={model.id}>
+                            <div className="flex items-center space-x-2">
+                              {model.type.includes('ocr') ? (
+                                <FileText className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-green-600" />
+                              )}
+                              <div>
+                                <div className="font-medium">{model.name}</div>
+                                <div className="text-xs text-gray-500">{model.description}</div>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {selectedModelId && (
+                    <p className="text-xs text-blue-600 mt-1 flex items-center">
+                      <Bot className="h-3 w-3 mr-1" />
+                      Auto-labeling will be applied to uploaded images
+                    </p>
+                  )}
+                </div>
               </div>
               <DialogFooter>
                 <Button 
                   variant="outline" 
-                  onClick={() => setCreateDialogOpen(false)}
+                  onClick={() => {
+                    setCreateDialogOpen(false);
+                    setSelectedModelId('');
+                  }}
                 >
                   Cancel
                 </Button>
@@ -256,57 +372,69 @@ export default function Projects() {
         {/* Projects Grid */}
         {filteredProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.map((project) => (
-              <Card 
-                key={project.id} 
-                className="border-0 shadow-lg hover-lift cursor-pointer group"
-                onClick={() => navigate(`/projects/${project.id}`)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-10 h-10 gradient-primary rounded-lg flex items-center justify-center">
-                        <FolderOpen className="h-5 w-5 text-white" />
+            {filteredProjects.map((project) => {
+              const modelInfo = getProjectModelInfo(project);
+              return (
+                <Card 
+                  key={project.id} 
+                  className="border-0 shadow-lg hover-lift cursor-pointer group"
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-10 h-10 gradient-primary rounded-lg flex items-center justify-center">
+                          <FolderOpen className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
+                            {project.name}
+                          </CardTitle>
+                          <CardDescription className="text-sm text-gray-500">
+                            Created {new Date(project.created_at).toLocaleDateString()}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <div>
-                        <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
-                          {project.name}
-                        </CardTitle>
-                        <CardDescription className="text-sm text-gray-500">
-                          Created {new Date(project.created_at).toLocaleDateString()}
-                        </CardDescription>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteProject(project.id, project.name);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteProject(project.id, project.name);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <Images className="h-4 w-4 mr-1" />
-                        {project.image_count || 0} images
+                    
+                    {modelInfo && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <Badge variant="secondary" className="text-xs">
+                          <Bot className="h-3 w-3 mr-1" />
+                          Auto: {modelInfo.name}
+                        </Badge>
                       </div>
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        {new Date(project.created_at).toLocaleDateString()}
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                        <div className="flex items-center">
+                          <Images className="h-4 w-4 mr-1" />
+                          {project.image_count || 0} images
+                        </div>
+                        <div className="flex items-center">
+                          <Calendar className="h-4 w-4 mr-1" />
+                          {new Date(project.created_at).toLocaleDateString()}
+                        </div>
                       </div>
+                      <Badge variant="secondary">Active</Badge>
                     </div>
-                    <Badge variant="secondary">Active</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-12">
