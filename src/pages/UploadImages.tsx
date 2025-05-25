@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -161,10 +160,13 @@ export default function UploadImages() {
 
       const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('files', file); // Changed from 'file' to 'files'
+
+      console.log('Uploading to project:', project?.project_id);
+      console.log('Upload URL:', `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECT_IMAGES(project?.project_id!)}`);
 
       const response = await fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECT_IMAGES(id!)}`,
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECT_IMAGES(project?.project_id!)}`,
         {
           method: 'POST',
           headers: {
@@ -174,8 +176,15 @@ export default function UploadImages() {
         }
       );
 
+      console.log('Upload response status:', response.status);
+      console.log('Upload response:', response);
+
       if (response.ok) {
-        const imageData = await response.json();
+        const responseData = await response.json();
+        console.log('Upload response data:', responseData);
+        
+        // The API might return an array of images or a single image
+        const imageData = Array.isArray(responseData) ? responseData[0] : responseData;
         
         // Update progress
         setFiles(prev => prev.map(f => 
@@ -192,7 +201,9 @@ export default function UploadImages() {
           ));
         }
       } else {
-        throw new Error('Upload failed');
+        const errorData = await response.json();
+        console.error('Upload error data:', errorData);
+        throw new Error(`Upload failed: ${response.status}`);
       }
     } catch (error) {
       console.error('Error uploading file:', error);
@@ -599,4 +610,3 @@ export default function UploadImages() {
     </div>
   );
 }
-
