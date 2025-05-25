@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Header } from "@/components/Header";
+import WorkflowDetail from '@/pages/WorkflowDetail';
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
@@ -46,10 +47,12 @@ const App = () => (
               <Route path="/ai-prediction" element={<AIPrediction />} />
               <Route path="/models" element={<Models />} />
               <Route path="/workflows" element={<Workflows />} />
+              <Route path="/workflows/:id" element={<WorkflowDetail />} />
               <Route path="/workflows/create" element={<WorkflowCreate />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/api-docs" element={<APIDocumentation />} />
+
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

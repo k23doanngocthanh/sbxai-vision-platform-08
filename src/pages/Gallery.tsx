@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +15,8 @@ import {
   Edit,
   Eye,
   Calendar,
-  FileImage
+  FileImage,
+  Trash2
 } from 'lucide-react';
 import { API_CONFIG, STORAGE_KEYS } from '@/lib/constants';
 
@@ -37,6 +37,19 @@ interface Project {
   name: string;
   created_at: string;
 }
+function useImageWithToken(imageId: string, original_filename: string) {
+  const [imgUrl, setImgUrl] = useState<string>('/placeholder.svg');
+
+  useEffect(() => {
+    if (!imageId) {
+      setImgUrl('/placeholder.svg');
+      return;
+    }
+    setImgUrl(`${API_CONFIG.BASE_URL}/api/v1/yolo/rest/images/${imageId}`);
+  }, [imageId]);
+
+  return imgUrl;
+}
 
 export default function Gallery() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -50,6 +63,7 @@ export default function Gallery() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated || !projectId) {
@@ -126,6 +140,37 @@ export default function Gallery() {
     return `${API_CONFIG.BASE_URL}/api/v1/yolo/rest/images/${imagePath}`;
   };
 
+  const toggleSelectImage = (id: string) => {
+    setSelectedImages((prev) =>
+      prev.includes(id) ? prev.filter((imgId) => imgId !== id) : [...prev, id]
+    );
+  };
+
+  const selectAll = () => setSelectedImages(filteredImages.map(img => img.id));
+  const clearSelection = () => setSelectedImages([]);
+
+  const deleteImages = async (ids: string[]) => {
+    if (!ids.length) return;
+    if (!window.confirm(`Delete ${ids.length} image(s)?`)) return;
+    try {
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      for (const id of ids) {
+        await fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROJECT_IMAGES(projectId!)}/${id}`,
+          {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          }
+        );
+      }
+      setImages((prev) => prev.filter(img => !ids.includes(img.id)));
+      setSelectedImages([]);
+      toast({ title: "Deleted", description: "Image(s) deleted." });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete image(s)", variant: "destructive" });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 pt-16 flex items-center justify-center">
@@ -196,56 +241,64 @@ export default function Gallery() {
           viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredImages.map((image) => (
-                <Card key={image.id} className="border-0 shadow-lg hover-lift">
-                  <CardContent className="p-0">
-                    <div className="aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
-                      <img
-                        src={getImageUrl(image.id)}
-                        alt={image.original_filename}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = '/placeholder.svg';
-                        }}
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-medium text-gray-900 truncate mb-2">
-                        {image.original_filename}
-                      </h3>
-                      <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
-                        <span>{image.image_width} × {image.image_height}</span>
-                        <span>{formatFileSize(image.file_size)}</span>
+                  <Card key={image.id} className="border-0 shadow-lg hover-lift relative">
+                    <input
+                      type="checkbox"
+                      className="absolute top-2 left-2 z-10"
+                      checked={selectedImages.includes(image.id)}
+                      onChange={() => toggleSelectImage(image.id)}
+                    />
+                    <CardContent className="p-0">
+                      <div className="aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
+                        <img
+                          src={getImageUrl(image.id)}
+                          alt={image.original_filename}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (!target.src.endsWith('/placeholder.svg')) {
+                              target.src = '/placeholder.svg';
+                            }
+                          }}
+                        />
                       </div>
-                      
-                      {image.annotation_count && (
-                        <Badge variant="secondary" className="mb-3">
-                          {image.annotation_count} annotations
-                        </Badge>
-                      )}
-                      
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => navigate(`/projects/${projectId}/annotate?imageId=${image.id}`)}
-                          className="flex-1"
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Annotate
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => window.open(getImageUrl(image.id), '_blank')}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                      <div className="p-4">
+                        <h3 className="font-medium text-gray-900 truncate mb-2">
+                          {image.original_filename}
+                        </h3>
+                        <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
+                          <span>{image.image_width} × {image.image_height}</span>
+                          <span>{formatFileSize(image.file_size)}</span>
+                        </div>
+                        
+                        {image.annotation_count && (
+                          <Badge variant="secondary" className="mb-3">
+                            {image.annotation_count} annotations
+                          </Badge>
+                        )}
+                        
+                        <div className="flex space-x-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigate(`/projects/${projectId}/annotate?imageId=${image.id}`)}
+                            className="flex-1"
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Annotate
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(getImageUrl(image.id), '_blank')}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))}
             </div>
           ) : (
             <div className="space-y-4">
@@ -313,6 +366,14 @@ export default function Gallery() {
                         >
                           <Download className="h-4 w-4" />
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteImages([image.id])}
+                          title="Xóa ảnh"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
@@ -343,6 +404,33 @@ export default function Gallery() {
             )}
           </div>
         )}
+
+        {/* Selected Images Actions */}
+        {/* Bulk actions */}
+        {selectedImages.length > 0 && (
+          <div className="flex items-center space-x-2 mb-6">
+            <Button
+              variant="destructive"
+              onClick={() => deleteImages(selectedImages)}
+              size="sm"
+            >
+              <span className="font-semibold">Xóa {selectedImages.length} hình</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={clearSelection}>
+              Bỏ chọn
+            </Button>
+          </div>
+        )}
+        <div className="flex justify-end mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={selectAll}
+            className="ml-2"
+          >
+            Chọn tất cả
+          </Button>
+        </div>
       </div>
     </div>
   );

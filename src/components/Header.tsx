@@ -49,9 +49,7 @@ export const Header = () => {
             <Link to="/models" className="text-gray-600 hover:text-gray-900 transition-colors">
               AI Models
             </Link>
-            <Link to="/api-docs" className="text-gray-600 hover:text-gray-900 transition-colors">
-              API Docs
-            </Link>
+          
             {isAuthenticated && (
               <>
                 <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 transition-colors">
@@ -65,6 +63,9 @@ export const Header = () => {
                 </Link>
               </>
             )}
+              <Link to="/api-docs" className="text-gray-600 hover:text-gray-900 transition-colors">
+              API Docs
+            </Link>
           </nav>
 
           <div className="flex items-center space-x-4">

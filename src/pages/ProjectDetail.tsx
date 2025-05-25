@@ -67,6 +67,7 @@ export default function ProjectDetail() {
 
       if (response.ok) {
         const projectData = await response.json();
+        console.log('Project data:', projectData); // Thêm dòng này để kiểm tra
         setProject(projectData);
       } else {
         throw new Error('Failed to fetch project');

@@ -1,6 +1,6 @@
 
 export const API_CONFIG = {
-  BASE_URL: 'https://sbxai.devhub.io.vn',
+  BASE_URL: 'http://localhost:8000',
   ENDPOINTS: {
     // Auth endpoints
     REGISTER: '/api/v1/yolo/rest/users/register',
