@@ -50,6 +50,7 @@ const App = () => (
               <Route path="/workflows" element={<Workflows />} />
               <Route path="/workflows/:id" element={<WorkflowDetail />} />
               <Route path="/workflows/create" element={<WorkflowCreate />} />
+              <Route path="/workflows/:workflowId/steps/create" element={<WorkflowStepCreate />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/api-docs" element={<APIDocumentation />} />
