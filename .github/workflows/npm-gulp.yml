@@ -33,7 +33,7 @@ jobs:
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./build
+        publish_dir: ./dist
         # Set the custom domain or folder if necessary (you can adjust this)
         # If your project is named 'NodeJS with Gulp', set the path accordingly.
         # If deploying to user/org page (username.github.io), no path needed.
