@@ -1,0 +1,43 @@
+name: Build and Deploy React with Gulp to GitHub Pages
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build with Gulp
+      run: gulp
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./build
+        # Set the custom domain or folder if necessary (you can adjust this)
+        # If your project is named 'NodeJS with Gulp', set the path accordingly.
+        # If deploying to user/org page (username.github.io), no path needed.
+        # For project pages (username.github.io/repo), set `publish_branch` and `publish_dir` properly.
+
+        # If your repo is named 'NodeJS with Gulp' and it's a project page, you may want to add:
+        #   # Optional: you might need to add `cname` or `destination_dir`
