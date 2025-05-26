@@ -1,9 +1,11 @@
+
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -16,7 +18,8 @@ import {
   Eye,
   Calendar,
   FileImage,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 import { API_CONFIG, STORAGE_KEYS } from '@/lib/constants';
 
@@ -37,6 +40,7 @@ interface Project {
   name: string;
   created_at: string;
 }
+
 function useImageWithToken(imageId: string, original_filename: string) {
   const [imgUrl, setImgUrl] = useState<string>('/placeholder.svg');
 
@@ -165,7 +169,7 @@ export default function Gallery() {
       }
       setImages((prev) => prev.filter(img => !ids.includes(img.id)));
       setSelectedImages([]);
-      toast({ title: "Deleted", description: "Image(s) deleted." });
+      toast({ title: "Success", description: `${ids.length} image(s) deleted successfully.` });
     } catch {
       toast({ title: "Error", description: "Failed to delete image(s)", variant: "destructive" });
     }
@@ -236,76 +240,156 @@ export default function Gallery() {
           </div>
         </div>
 
+        {/* Bulk Selection Controls */}
+        {selectedImages.length > 0 && (
+          <Card className="mb-6 border-purple-200 bg-purple-50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Badge variant="secondary" className="px-3 py-1">
+                    {selectedImages.length} selected
+                  </Badge>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => deleteImages(selectedImages)}
+                    className="hover:bg-red-600"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Selected
+                  </Button>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearSelection}
+                  className="hover:bg-white"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Clear Selection
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Selection Controls */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={selectAll}
+              disabled={filteredImages.length === 0}
+            >
+              Select All ({filteredImages.length})
+            </Button>
+            {selectedImages.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearSelection}
+              >
+                Clear Selection
+              </Button>
+            )}
+          </div>
+        </div>
+
         {/* Images Grid/List */}
         {filteredImages.length > 0 ? (
           viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredImages.map((image) => (
-                  <Card key={image.id} className="border-0 shadow-lg hover-lift relative">
-                    <input
-                      type="checkbox"
-                      className="absolute top-2 left-2 z-10"
-                      checked={selectedImages.includes(image.id)}
-                      onChange={() => toggleSelectImage(image.id)}
-                    />
-                    <CardContent className="p-0">
-                      <div className="aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
-                        <img
-                          src={getImageUrl(image.id)}
-                          alt={image.original_filename}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            if (!target.src.endsWith('/placeholder.svg')) {
-                              target.src = '/placeholder.svg';
-                            }
-                          }}
-                        />
+                <Card key={image.id} className="group border-0 shadow-lg hover-lift relative overflow-hidden">
+                  {/* Checkbox Overlay */}
+                  <div className="absolute top-3 left-3 z-10">
+                    <div className="flex items-center space-x-2 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm">
+                      <Checkbox
+                        checked={selectedImages.includes(image.id)}
+                        onCheckedChange={() => toggleSelectImage(image.id)}
+                        className="border-2 border-gray-300 data-[state=checked]:border-purple-500 data-[state=checked]:bg-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Delete Button */}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 bg-red-500 hover:bg-red-600"
+                    onClick={() => deleteImages([image.id])}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+
+                  <CardContent className="p-0">
+                    <div className="aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
+                      <img
+                        src={getImageUrl(image.id)}
+                        alt={image.original_filename}
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (!target.src.endsWith('/placeholder.svg')) {
+                            target.src = '/placeholder.svg';
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-medium text-gray-900 truncate mb-2">
+                        {image.original_filename}
+                      </h3>
+                      <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
+                        <span>{image.image_width} × {image.image_height}</span>
+                        <span>{formatFileSize(image.file_size)}</span>
                       </div>
-                      <div className="p-4">
-                        <h3 className="font-medium text-gray-900 truncate mb-2">
-                          {image.original_filename}
-                        </h3>
-                        <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
-                          <span>{image.image_width} × {image.image_height}</span>
-                          <span>{formatFileSize(image.file_size)}</span>
-                        </div>
-                        
-                        {image.annotation_count && (
-                          <Badge variant="secondary" className="mb-3">
-                            {image.annotation_count} annotations
-                          </Badge>
-                        )}
-                        
-                        <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => navigate(`/projects/${projectId}/annotate?imageId=${image.id}`)}
-                            className="flex-1"
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Annotate
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => window.open(getImageUrl(image.id), '_blank')}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </div>
+                      
+                      {image.annotation_count && (
+                        <Badge variant="secondary" className="mb-3">
+                          {image.annotation_count} annotations
+                        </Badge>
+                      )}
+                      
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigate(`/projects/${projectId}/annotate?imageId=${image.id}`)}
+                          className="flex-1"
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Annotate
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(getImageUrl(image.id), '_blank')}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           ) : (
             <div className="space-y-4">
               {filteredImages.map((image) => (
-                <Card key={image.id} className="border-0 shadow-lg">
+                <Card key={image.id} className="group border-0 shadow-lg hover-lift">
                   <CardContent className="p-6">
                     <div className="flex items-center space-x-6">
+                      {/* Checkbox */}
+                      <div className="flex items-center">
+                        <Checkbox
+                          checked={selectedImages.includes(image.id)}
+                          onCheckedChange={() => toggleSelectImage(image.id)}
+                          className="border-2 border-gray-300 data-[state=checked]:border-purple-500 data-[state=checked]:bg-purple-500 h-5 w-5"
+                        />
+                      </div>
+
                       <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                         <img
                           src={getImageUrl(image.id)}
@@ -370,7 +454,7 @@ export default function Gallery() {
                           size="sm"
                           variant="destructive"
                           onClick={() => deleteImages([image.id])}
-                          title="Xóa ảnh"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -404,33 +488,6 @@ export default function Gallery() {
             )}
           </div>
         )}
-
-        {/* Selected Images Actions */}
-        {/* Bulk actions */}
-        {selectedImages.length > 0 && (
-          <div className="flex items-center space-x-2 mb-6">
-            <Button
-              variant="destructive"
-              onClick={() => deleteImages(selectedImages)}
-              size="sm"
-            >
-              <span className="font-semibold">Xóa {selectedImages.length} hình</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={clearSelection}>
-              Bỏ chọn
-            </Button>
-          </div>
-        )}
-        <div className="flex justify-end mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={selectAll}
-            className="ml-2"
-          >
-            Chọn tất cả
-          </Button>
-        </div>
       </div>
     </div>
   );
