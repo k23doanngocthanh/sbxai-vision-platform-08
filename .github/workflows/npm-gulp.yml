@@ -25,7 +25,12 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Build 
+    - name: Copy from .dist to public
+      run: |
+        mkdir -p public
+        cp -r ./dist/* public/
+
+    - name: Build
       run: npm run build
 
     - name: Deploy to GitHub Pages
@@ -33,11 +38,4 @@ jobs:
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist
-        # Set the custom domain or folder if necessary (you can adjust this)
-        # If your project is named 'NodeJS with Gulp', set the path accordingly.
-        # If deploying to user/org page (username.github.io), no path needed.
-        # For project pages (username.github.io/repo), set `publish_branch` and `publish_dir` properly.
-
-        # If your repo is named 'NodeJS with Gulp' and it's a project page, you may want to add:
-        #   # Optional: you might need to add `cname` or `destination_dir`
+        publish_dir: ./public
