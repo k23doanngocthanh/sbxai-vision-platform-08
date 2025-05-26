@@ -56,11 +56,16 @@ export interface JobStepResponse {
 }
 
 export interface ModelManagementResponse {
-  id: number;
+  id: string;
   name: string;
-  path: string;
-  version?: string;
-  type: string;
+  description?: string;
+  pt_path: string;
+  type: string; // e.g., 'yolo', 'ocr'
+  confidence_threshold?: number;
+  user_id: string;
+  project_id?: number | null;
+  is_public: boolean;
+  link_doc?: string;
   created_at: string;
 }
 

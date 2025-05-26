@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,7 +47,7 @@ const WorkflowStepCreate = () => {
       icon: Zap,
       color: 'bg-blue-50 border-blue-200 text-blue-700'
     },
-    { 
+    {  
       value: 'crop', 
       label: 'Image Cropping', 
       description: 'Extract and crop specific regions from detected objects',
@@ -87,7 +86,12 @@ const WorkflowStepCreate = () => {
   const fetchModels = async () => {
     try {
       const modelsData = await workflowService.getModels(formData.step_type);
-      setModels(modelsData);
+      console.log('Fetched models:', modelsData);
+      if (Array.isArray(modelsData)) {
+        setModels(modelsData);
+      } else {
+        setModels([]);
+      }
     } catch (error) {
       console.error('Failed to fetch models:', error);
     }
@@ -161,14 +165,14 @@ const WorkflowStepCreate = () => {
       return;
     }
 
-    if (!formData.model_name) {
-      toast({
-        title: "Error",
-        description: "Please select a model",
-        variant: "destructive",
-      });
-      return;
-    }
+    // if (!formData.model_name) {
+    //   toast({
+    //     title: "Error",
+    //     description: "Please select a model",
+    //     variant: "destructive",
+    //   });
+    //   return;
+    // }
 
     try {
       setLoading(true);
@@ -372,7 +376,7 @@ const WorkflowStepCreate = () => {
                             <div>
                               <div className="font-medium">{model.name}</div>
                               <div className="text-xs text-gray-500">
-                                {model.type} • {model.version && `v${model.version}`}
+                                {model.type} - {model.description || 'No description available'}
                               </div>
                             </div>
                           </div>

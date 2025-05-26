@@ -111,10 +111,16 @@ class WorkflowService {
   }
 
   async createWorkflowStep(workflowId: string, data: WorkflowStepCreateRequest): Promise<WorkflowStepResponse> {
+    // Ensure config_json is not stringified, backend expects an object or null
+    const payload = {
+      ...data,
+      config_json: data.config_json ?? null
+    };
+
     const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.WORKFLOW_STEPS(workflowId)}`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
+      body: JSON.stringify(payload)
     });
     
     if (!response.ok) {
@@ -228,7 +234,7 @@ class WorkflowService {
   }
 
   // Model Management
-  async getModels(modelType?: StepType): Promise<ModelManagementResponse[]> {
+async getModels(modelType?: StepType): Promise<ModelManagementResponse[]> {
     const params = modelType ? `?model_type=${modelType}` : '';
     
     const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.WORKFLOW_MODELS}${params}`, {
@@ -239,8 +245,9 @@ class WorkflowService {
       throw new Error('Failed to fetch models');
     }
     
-    return await response.json();
-  }
+    const data = await response.json();
+    return data.models || [];
+}
 
   async createModel(data: ModelCreateRequest): Promise<ModelManagementResponse> {
     const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.WORKFLOW_MODELS}`, {
